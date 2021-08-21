@@ -1,11 +1,13 @@
 from aiogram import types
-from aiogram.dispatcher.filters.builtin import Command
+from aiogram.dispatcher.filters.builtin import Command, Message
 
-from keyboards.default import weather_time
+from keyboards.default import weather_time, create_city_keyboard
 
 from loader import dp
 from states.weather import Weather
 from aiogram.dispatcher import FSMContext
+from utils.misc.send_weather import get_cords
+from string import digits
 
 '''
 @dp.message_handler(Command('menu'))
@@ -16,12 +18,46 @@ YES = ['yes', 'Yes', 'YES', 'yES', 'yEs', 'YeS']
 NO = ['NO', 'no', 'No', 'nO']
 
 
-@dp.message_handler(Command('weather'))
-async def enter_test(message: types.Message):
-    await message.answer('Started test. \nAre you ok?')
+@dp.message_handler(Command('weather'), state='*')
+async def ask_city(message: types.Message):
+    await message.answer("Your city name?")
+    await Weather.Get_city_name.set()
 
-    await Weather.Q1.set()
 
+@dp.message_handler(state=Weather.Get_city_name)
+async def get_city_name(message: types.Message, state: FSMContext):
+    if message.location:
+        print(message.location)
+        location = message.location
+        await state.update_data(location=location)
+    else:
+        city_name = message.text
+        cities = get_cords(city_name)
+        await state.update_data(cities=cities)
+
+        if len(cities) > 1:
+            cities_keyboard = create_city_keyboard(cities)
+            await message.answer('Here is some cities with same name, in what do you interested?', reply_markup=await cities_keyboard)
+            Weather.Choose_city.set()
+
+        else:
+            await state.update_data({'lat': cities[0]['lat'], 'lon': cities[0]['lon']})
+            await Weather.Choose_duration.set()
+
+
+@dp.message_handler(state=Weather.Choose_city)
+async def choose_city(message: types.Message, state: FSMContext):
+    number = message.text[0]
+    if number not in digits:
+        await message.answer('Choose city from a keyboard')
+    else:
+        s_data = await state.get_data()
+        cities = s_data.get('cities')
+        await state.update_data({'lat': cities[int(number) - 1]['lat'], 'lon': cities[int(number) - 1]['lon']})
+
+
+
+'''
 
 @dp.message_handler(state= Weather.Q1)
 async def answer_q1(message: types.Message, state: FSMContext):
@@ -51,3 +87,5 @@ async def answer_q2(message: types.Message, state: FSMContext):
             await message.answer('Heeey, I have some offers, specially for you: \nhttps://vek-ritual.com.ua/ritualnye-tovary/groby-tkan/')
 
     await state.finish()
+
+'''
