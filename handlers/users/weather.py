@@ -1,12 +1,12 @@
 from aiogram import types
-from aiogram.dispatcher.filters.builtin import Command, Message
-
+from aiogram.dispatcher.filters.builtin import Command
+from aiogram.types import ReplyKeyboardRemove
 from keyboards.default import weather_time, create_city_keyboard
 
 from loader import dp
 from states.weather import Weather
 from aiogram.dispatcher import FSMContext
-from utils.misc.send_weather import get_cords
+from utils.misc.send_weather import get_cords, send_weather
 from string import digits
 
 '''
@@ -33,15 +33,19 @@ async def get_city_name(message: types.Message, state: FSMContext):
     else:
         city_name = message.text
         cities = get_cords(city_name)
+        if not cities:
+            await message.answer('Could not find this city. Is name of it correct? \nRemember, that you can send your location directly')
+            return 0
         await state.update_data(cities=cities)
 
         if len(cities) > 1:
             cities_keyboard = create_city_keyboard(cities)
             await message.answer('Here is some cities with same name, in what do you interested?', reply_markup=await cities_keyboard)
-            Weather.Choose_city.set()
+            await Weather.Choose_city.set()
 
         else:
             await state.update_data({'lat': cities[0]['lat'], 'lon': cities[0]['lon']})
+            await message.answer('Forecast duration?', reply_markup=weather_time)
             await Weather.Choose_duration.set()
 
 
@@ -54,7 +58,35 @@ async def choose_city(message: types.Message, state: FSMContext):
         s_data = await state.get_data()
         cities = s_data.get('cities')
         await state.update_data({'lat': cities[int(number) - 1]['lat'], 'lon': cities[int(number) - 1]['lon']})
+        await message.answer('Forecast duration?', reply_markup=weather_time)
+        await Weather.Choose_duration.set()
 
+
+@dp.message_handler(state= Weather.Choose_duration)
+async def choose_duration(message: types.Message, state: FSMContext):
+    duration = message.text
+    all_data = await state.get_data()
+    lat = all_data.get('lat')
+    lon = all_data.get('lon')
+    if duration == 'Today':
+        await message.answer('This function is not released yet')
+
+    elif duration == 'Tomorrow':
+        await message.answer('This function is not released yet')
+
+    elif duration == '2 days, detailed':
+        #await message.answer('This function is not released yet')
+        answer = send_weather('2 days, detailed', lat, lon)
+        await message.answer(answer, reply_markup=ReplyKeyboardRemove())
+        await state.reset_state(with_data=False)
+
+    elif duration == '7 days':
+        answer = send_weather('7 days', lat, lon)
+        await message.answer(answer, reply_markup=ReplyKeyboardRemove())
+        await state.reset_state(with_data=False)
+    else:
+        await message.answer('Choose the duration from keyboard')
+        return 0
 
 
 '''
