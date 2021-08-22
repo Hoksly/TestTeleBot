@@ -14,6 +14,13 @@ weather_time = ReplyKeyboardMarkup(keyboard=[
     ]
 ], resize_keyboard=True)
 
+city_choose_keyboard = ReplyKeyboardMarkup(keyboard=
+                                    [
+                                        [KeyboardButton(text= 'Kiev')],
+                                        [KeyboardButton(text= 'Lviv')],
+                                        [KeyboardButton(text= 'Send location', request_location=True)]
+                                    ], resize_keyboard= True)
+
 
 async def create_city_keyboard(cities:dict):
     boards = []

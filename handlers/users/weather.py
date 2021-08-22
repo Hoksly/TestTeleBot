@@ -1,7 +1,7 @@
 from aiogram import types
 from aiogram.dispatcher.filters.builtin import Command
 from aiogram.types import ReplyKeyboardRemove
-from keyboards.default import weather_time, create_city_keyboard
+from keyboards.default import weather_time, create_city_keyboard, city_choose_keyboard
 
 from loader import dp
 from states.weather import Weather
@@ -20,13 +20,15 @@ NO = ['NO', 'no', 'No', 'nO']
 
 @dp.message_handler(Command('weather'), state='*')
 async def ask_city(message: types.Message):
-    await message.answer("Your city name?")
+    await message.answer("Your city name?", reply_markup=city_choose_keyboard)
     await Weather.Get_city_name.set()
 
 
 @dp.message_handler(state=Weather.Get_city_name)
 async def get_city_name(message: types.Message, state: FSMContext):
+    print('herer')
     if message.location:
+        print('her')
         print(message.location)
         location = message.location
         await state.update_data(location=location)
@@ -75,7 +77,6 @@ async def choose_duration(message: types.Message, state: FSMContext):
         await message.answer('This function is not released yet')
 
     elif duration == '2 days, detailed':
-        #await message.answer('This function is not released yet')
         answer = send_weather('2 days, detailed', lat, lon)
         await message.answer(answer, reply_markup=ReplyKeyboardRemove())
         await state.reset_state(with_data=False)
