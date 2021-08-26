@@ -7,7 +7,7 @@ from states.weather import Weather
 from aiogram.dispatcher import FSMContext
 from utils.misc.send_weather import get_cords, send_weather, find_city_in_massage
 from string import digits
-from data.database.weather_databse.weather_db import get_users_cities, check_user
+from data.database.weather_databse.weather_db import get_users_cities, check_user, find_city
 '''
 @dp.message_handler(Command('menu'))
 async def bot_start(message: types.Message):
@@ -34,20 +34,27 @@ async def get_city_name(message: types.Message, state: FSMContext):
         await state.update_data(location=location)
     else:
         city_name = find_city_in_massage(message.text)
-        cities = get_cords(city_name)
-        if not cities:
-            await message.answer('Could not find this city. Is name of it correct? \nRemember, that you can send your location directly')
-            return 0
-        await state.update_data(cities=cities)
+        c_lat, c_lon, c_name, c_country, c_id = find_city(message.text)
+        if not c_lat:
+            cities = get_cords(city_name)
+            if not cities:
+                await message.answer('Could not find this city. Is name of it correct? \nRemember, that you can send your location directly')
+                return 0
+            await state.update_data(cities=cities)
 
-        if len(cities) > 1:
-            cities_keyboard = create_city_keyboard(cities, mode='create_2')
-            await message.answer('Here is some cities with same name, in what do you interested?', reply_markup=await cities_keyboard)
-            await Weather.Choose_city.set()
+            if len(cities) > 1:
+                cities_keyboard = create_city_keyboard(cities, mode='create_2')
+                await message.answer('Here is some cities with same name, in what do you interested?', reply_markup=await cities_keyboard)
+                await Weather.Choose_city.set()
 
+            else:
+                await state.update_data({'lat': cities[0]['lat'], 'lon': cities[0]['lon'],
+                                         'name': cities[0]['name'], 'country': cities[0]['country']})
+                await message.answer('Forecast duration?', reply_markup=weather_time)
+                await Weather.Choose_duration.set()
         else:
-            await state.update_data({'lat': cities[0]['lat'], 'lon': cities[0]['lon'],
-                                     'name': cities[0]['name'], 'country': cities[0]['country']})
+            await state.update_data({'lat': c_lat, 'lon': c_lon,
+                                     'name': c_name, 'country': c_country})
             await message.answer('Forecast duration?', reply_markup=weather_time)
             await Weather.Choose_duration.set()
 
@@ -73,7 +80,7 @@ async def choose_duration(message: types.Message, state: FSMContext):
     duration = message.text
     lat = all_data.get('lat')
     lon = all_data.get('lon')
-    await check_user(message.from_user.id, all_data.get('name'), all_data.get('country'), lat, lon)
+    c_id = await check_user(message.from_user.id, all_data.get('name'), all_data.get('country'), lat, lon)
     if duration == 'Today':
         await message.answer('This function is not released yet')
 
@@ -81,14 +88,14 @@ async def choose_duration(message: types.Message, state: FSMContext):
         await message.answer('This function is not released yet')
 
     elif duration == '2 days, detailed':
-        answer = send_weather('2 days, detailed', lat, lon)
+        answer = send_weather('2 days, detailed', lat, lon, c_id=c_id)
         await message.answer(answer, reply_markup=ReplyKeyboardRemove())
-        await state.reset_state(with_data=False)
+        await state.reset_state(with_data=True)
 
     elif duration == '7 days':
-        answer = send_weather('7 days', lat, lon)
+        answer = send_weather('7 days', lat, lon, c_id=c_id)
         await message.answer(answer, reply_markup=ReplyKeyboardRemove())
-        await state.reset_state(with_data=False)
+        await state.reset_state(with_data=True)
     else:
         await message.answer('Choose the duration from keyboard')
         return 0

@@ -1,7 +1,16 @@
+import json
 import sqlite3
 from loader import db
+from time import time
+
+from data.config import WEATHER_FORECAST_FOLDER
+import os
+import requests
+from data import config
 
 sql = db.cursor()
+
+WEATHER_LINK = 'https://api.openweathermap.org/data/2.5/onecall?lat={}&lon={}&exclude={}&appid={}'
 
 
 def recreate_db():
@@ -28,6 +37,29 @@ def recreate_db():
     """)
 
 
+def get_weather_folder(city, country):
+    return WEATHER_FORECAST_FOLDER + '/' + city + '_' + country
+
+
+"""
+Structure: forecast_folder/city_folder
+In this folder will be second files:
+forecast_minutely.json
+forecast_hourly.json
+forecast_daily.json
+forecast_monthly.json
+
+
+"""
+
+
+def create_weather_files(folder):
+    open(folder + '/forecast_minutely.json', 'w')
+    open(folder + '/forecast_hourly.json', 'w')
+    open(folder + '/forecast_daily.json', 'w')
+    open(folder + '/forecast_monthly.json', 'w')
+
+
 def get_city(city_id):
     sql.execute("""
     SELECT name, country FROM city WHERE id = '{}'
@@ -43,8 +75,7 @@ async def get_users_cities(user_id):
     c_data = sql.fetchall()
     if c_data:
         ret = []
-        for el in c_data:
-
+        for el in c_data[:5]:
             ret.append(get_city(el[0]))
         return ret
 
@@ -70,7 +101,7 @@ def check_city_to_user_connection(user_id, city_id):
 def add_user(user_id, send_alerts=False, send_daily=False):
     sql.execute("""
        INSERT INTO user VALUES (?, ?, ?)""", (int(user_id), int(send_alerts),
-                                                                            int(send_daily)))
+                                              int(send_daily)))
     db.commit()
 
 
@@ -85,6 +116,8 @@ async def check_user(user_id, city_name, city_country, city_lat, city_lon, send_
     city_id = check_city(city_name, city_country, city_lat, city_lon)
     if not check_city_to_user_connection(user_id, city_id):
         add_city_to_user(user_id, city_id)
+
+    return city_id
 
 
 def add_city(city_name, city_country, lat, lon,
@@ -104,6 +137,9 @@ def add_city(city_name, city_country, lat, lon,
           forecast_cur_updated, forecast_2d_updated, forecast_7d_updated, forecast_30d_updated, lat, lon))
 
     db.commit()
+    os.mkdir(get_weather_folder(city_name, city_country))
+    create_weather_files(get_weather_folder(city_name, city_country))
+
     return c_id
 
 
@@ -112,12 +148,35 @@ def check_city(city_name, city_country, city_lat, city_lon):
     SELECT id from city WHERE name = ? AND country = ?
     """, (city_name, city_country))
 
-    id = sql.fetchone()
-    # print(type(id), id)
-    if id:
-        return id[0]
+    c_id = sql.fetchone()
+    if c_id:
+        return c_id[0]
     else:
         return add_city(city_name=city_name, city_country=city_country, lat=city_lat, lon=city_lon)
+
+
+def find_city(message: str):
+    name, country = message.split()
+    sql.execute("""
+    SELECT lat, lon, id FROM city WHERE name = '{}' AND country = '{}'
+    """.format(name, country))
+    res = sql.fetchone()
+    if res:
+        return res[0], res[1], name, country, res[2]
+    else:
+        return None, None, None, None
+
+
+def check_time(mode, t_time):
+    if not t_time:
+        return True
+
+    if mode == 'cur':  # once per 5 minutes
+        return (int(time()) - int(t_time)) >= 5 * 60
+    elif mode == '2d':  # once per hour
+        return (int(time()) - int(t_time)) >= 60 * 60
+    elif mode == '7d':  # once per day
+        return (int(time()) - int(t_time)) >= 60 * 60 * 24
 
 
 def update_user_send_alerts(user_id):
@@ -132,17 +191,72 @@ def update_forecast_current(city_id, forecast):
     pass
 
 
-def update_forecast_2days(city_id, forecast):
-    pass
+def give_forecast_2days(city_id):
+    sql.execute("""
+        SELECT forecast_2d_updated from city WHERE id = '{}'
+        """.format(city_id))
+    if check_time('2d', sql.fetchone()):
+        sql.execute("""
+        SELECT lat, lon, country, name FROM city WHERE id = '{}'
+        """.format(city_id))
+        lat, lon, country, name = sql.fetchone()
+
+        link = WEATHER_LINK.format(lat, lon, '', config.API_KEY)  # '' is for exclude - exclude nothing, give all weather
+        r = requests.get(link)
+        with open(get_weather_folder(name, country) + '/forecast_hourly.json', 'w') as file:
+            json.dump(r.json(), file)
+
+        return r.json()['hourly']
+    else:
+        sql.execute("""
+                    SELECT country, name FROM city WHERE id = '{}'
+                    """.format(city_id))
+        country, name = sql.fetchone()
+
+        with open(get_weather_folder(name, country) + '/forecast_hourly.json', 'r') as file:
+            return json.load(file)
 
 
-def update_forecast_week(city_id, forecast):
-    pass
+def give_forecast_week(city_id):
+    sql.execute("""
+            SELECT forecast_7d_updated from city WHERE id = '{}'
+            """.format(city_id))
+    if check_time('7d', sql.fetchone()):
+        sql.execute("""
+            SELECT lat, lon, country, name FROM city WHERE id = '{}'
+            """.format(city_id))
+        lat, lon, country, name = sql.fetchone()
+
+        link = WEATHER_LINK.format(lat, lon, '',
+                                   config.API_KEY)  # '' is for exclude - exclude nothing, give all weather
+        r = requests.get(link)
+        with open(get_weather_folder(name, country) + '/forecast_daily.json', 'w') as file:
+            json.dump(r.json(), file)
+
+        return r.json()['daily']
+    else:
+        sql.execute("""
+                    SELECT country, name FROM city WHERE id = '{}'
+                    """.format(city_id))
+        country, name = sql.fetchone()
+
+        with open(get_weather_folder(name, country) + '/forecast_daily.json', 'r') as file:
+            return json.load(file)
 
 
 def update_forecast_month(city_id, forecast):
     pass
 
 
-get_city(1)
-print(sql.fetchall())
+def update_city_forecast(weather):
+    pass
+
+
+def get_weather_db(city_id, mode):
+    if mode == '2d':
+        return give_forecast_2days(city_id)
+    elif mode == '7d':
+        return give_forecast_week(city_id)
+
+
+
