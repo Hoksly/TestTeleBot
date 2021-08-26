@@ -90,3 +90,8 @@ def send_weather(mode, lat, lon):
         weather_data = get_weather(lat, lon)['daily']
 
         return week_forecast(weather_data)
+
+
+def find_city_in_massage(s):
+    return s[0:s.index(' ')]
+
