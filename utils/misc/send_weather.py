@@ -7,7 +7,7 @@ key: bac78fa327b6bb2e8fa4f3a409a15252
 import requests
 from requests.models import Response
 from data import config
-from datetime import datetime
+from datetime import datetime, timedelta
 from data.database.weather_databse.weather_db import get_weather_db
 import json
 
@@ -62,12 +62,12 @@ def detailed_48_hours(text, delay=2):
 
 def week_forecast(text):
     res = ''
-    date = datetime.now().day
+    date = datetime.now()
     for el in text:
-        s = f'{date}) min: {int(el["temp"]["min"] - 272.15)} max:{int(el["temp"]["max"] - 272.15)}, {el["weather"][0]["description"]}, ' \
+        s = f'{date.day}) min: {int(el["temp"]["min"] - 272.15)} max:{int(el["temp"]["max"] - 272.15)}, {el["weather"][0]["description"]}, ' \
             f'chance of rain(snow): {el["pop"]}'
         s += '\n'
-        date += 1
+        date += timedelta(days=1)
         res += s
     return res
 

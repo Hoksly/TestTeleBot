@@ -7,7 +7,7 @@ from data.config import WEATHER_FORECAST_FOLDER
 import os
 import requests
 from data import config
-
+from datetime import datetime, timedelta
 sql = db.cursor()
 
 WEATHER_LINK = 'https://api.openweathermap.org/data/2.5/onecall?lat={}&lon={}&exclude={}&appid={}'
