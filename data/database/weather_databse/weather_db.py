@@ -8,6 +8,7 @@ import os
 import requests
 from data import config
 from datetime import datetime, timedelta
+
 sql = db.cursor()
 
 WEATHER_LINK = 'https://api.openweathermap.org/data/2.5/onecall?lat={}&lon={}&exclude={}&appid={}'
@@ -31,6 +32,15 @@ def recreate_db():
                 send_alerts INT,
                 send_daily INT)
     """)
+
+    sql.execute("""
+        CREATE TABLE IF NOT EXISTS 'interested_in' (
+	    'user_id'	INTEGER NOT NULL,
+	    'city_id'	INTEGER NOT NULL,
+	    FOREIGN KEY('user_id') REFERENCES "user"('id'),
+	    PRIMARY KEY('user_id','city_id'))
+
+        """)
 
 
 def get_weather_folder(city, country):
@@ -290,5 +300,3 @@ def get_weather_db(city_id, mode):
         return give_forecast_2days(city_id)
     elif mode == '7d':
         return give_forecast_week(city_id)
-
-

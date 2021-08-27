@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from data.config import WEATHER_FORECAST_FOLDER, WEATHER_DB_ADDRES
-
+from data.database.weather_databse.weather_db import recreate_db
 
 def create_dir(folder_path):
     try:
