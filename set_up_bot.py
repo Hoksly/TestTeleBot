@@ -17,3 +17,4 @@ def create_db(db_path):
 create_dir('data/database/weather_databse/db')
 create_dir(WEATHER_FORECAST_FOLDER)
 create_db(WEATHER_DB_ADDRES)
+recreate_db()
