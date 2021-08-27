@@ -91,7 +91,6 @@ async def choose_duration(message: types.Message, state: FSMContext):
         answer = send_weather('2 days, detailed', lat, lon, c_id=c_id)
         await message.answer(answer, reply_markup=ReplyKeyboardRemove())
         await state.reset_state(with_data=True)
-
     elif duration == '7 days':
         answer = send_weather('7 days', lat, lon, c_id=c_id)
         await message.answer(answer, reply_markup=ReplyKeyboardRemove())

@@ -18,10 +18,6 @@ def recreate_db():
             id INT PRIMARY KEY, 
             name TEXT, 
             country TEXT,
-            forecast_cur TEXT,
-            forecast_2d TEXT,
-            forecast_7d TEXT,
-            forecast_30d, TEXT,
             forecast_cur_updated TEXT,
             forecast_2d_updated TEXT,
             forecast_7d_updated TEXT,
@@ -51,6 +47,13 @@ forecast_monthly.json
 
 
 """
+
+
+def create_folder(path):
+    try:
+        os.mkdir(path)
+    except:
+        print("This folder already exist:", path)
 
 
 def create_weather_files(folder):
@@ -126,15 +129,19 @@ def add_city(city_name, city_country, lat, lon,
     sql.execute("""
     SELECT id from city
     """)
-    c_id = sql.fetchall()[-1]
+    try:
+        c_id = sql.fetchall()[-1]
+    except IndexError:
+        c_id = None
+
     if c_id is None:
         c_id = 1
     else:
         c_id = max(c_id) + 1
     sql.execute("""
-    INSERT INTO city VALUES (?, ? , ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (c_id, city_name, city_country, forecast_cur, forecast_2d, forecast_7d, forecast_30d,
-          forecast_cur_updated, forecast_2d_updated, forecast_7d_updated, forecast_30d_updated, lat, lon))
+    INSERT INTO city VALUES (?, ? , ?, ?, ?, ?, ?, ?, ?)
+    """, (c_id, city_name, city_country, forecast_cur_updated, forecast_2d_updated,
+          forecast_7d_updated, forecast_30d_updated, lat, lon))
 
     db.commit()
     os.mkdir(get_weather_folder(city_name, city_country))
@@ -156,7 +163,10 @@ def check_city(city_name, city_country, city_lat, city_lon):
 
 
 def find_city(message: str):
-    name, country = message.split()
+    try:
+        name, country = message.split()
+    except:
+        return None, None, None, None, None
     sql.execute("""
     SELECT lat, lon, id FROM city WHERE name = '{}' AND country = '{}'
     """.format(name, country))
@@ -164,19 +174,40 @@ def find_city(message: str):
     if res:
         return res[0], res[1], name, country, res[2]
     else:
-        return None, None, None, None
+        return None, None, None, None, None
 
 
 def check_time(mode, t_time):
-    if not t_time:
+    if not t_time[0]:
         return True
 
     if mode == 'cur':  # once per 5 minutes
-        return (int(time()) - int(t_time)) >= 5 * 60
+        return (time() - int(t_time[0])) >= 5 * 60
     elif mode == '2d':  # once per hour
-        return (int(time()) - int(t_time)) >= 60 * 60
+        return (time() - int(t_time[0])) >= 60 * 60
     elif mode == '7d':  # once per day
-        return (int(time()) - int(t_time)) >= 60 * 60 * 24
+        return (time() - int(t_time[0])) >= 60 * 60 * 24
+
+
+def write_changes_2d(json_data, file, city_id):
+    json.dump(json_data, file)
+    sql.execute("""
+    UPDATE city SET forecast_2d_updated = '{}' WHERE id = '{}'
+    """.format(int(time()), city_id))
+
+
+def write_changes_7d(json_data, file, city_id):
+    json.dump(json_data, file)
+    sql.execute("""
+    UPDATE city SET forecast_7d_updated = '{}' WHERE id = '{}'
+    """.format(int(time()), city_id))
+
+
+def write_changes_30d(json_data, file, city_id):
+    json.dump(json_data, file)
+    sql.execute("""
+    UPDATE city SET forecast_30d_updated = '{}' WHERE id = '{}'
+    """.format(int(time()), city_id))
 
 
 def update_user_send_alerts(user_id):
@@ -195,16 +226,18 @@ def give_forecast_2days(city_id):
     sql.execute("""
         SELECT forecast_2d_updated from city WHERE id = '{}'
         """.format(city_id))
-    if check_time('2d', sql.fetchone()):
+    res = sql.fetchone()
+    if check_time('2d', res):
         sql.execute("""
         SELECT lat, lon, country, name FROM city WHERE id = '{}'
         """.format(city_id))
         lat, lon, country, name = sql.fetchone()
 
-        link = WEATHER_LINK.format(lat, lon, '', config.API_KEY)  # '' is for exclude - exclude nothing, give all weather
+        link = WEATHER_LINK.format(lat, lon, '',
+                                   config.API_KEY)  # '' is for exclude - exclude nothing, give all weather
         r = requests.get(link)
         with open(get_weather_folder(name, country) + '/forecast_hourly.json', 'w') as file:
-            json.dump(r.json(), file)
+            write_changes_2d(r.json()['hourly'], file, city_id)
 
         return r.json()['hourly']
     else:
@@ -231,7 +264,7 @@ def give_forecast_week(city_id):
                                    config.API_KEY)  # '' is for exclude - exclude nothing, give all weather
         r = requests.get(link)
         with open(get_weather_folder(name, country) + '/forecast_daily.json', 'w') as file:
-            json.dump(r.json(), file)
+            write_changes_2d(r.json()['daily'], file, city_id)
 
         return r.json()['daily']
     else:
@@ -257,6 +290,5 @@ def get_weather_db(city_id, mode):
         return give_forecast_2days(city_id)
     elif mode == '7d':
         return give_forecast_week(city_id)
-
 
 

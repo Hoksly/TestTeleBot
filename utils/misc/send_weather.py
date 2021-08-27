@@ -36,11 +36,13 @@ def get_cords(city_name):
 
 
 def get_weather(lat:str, lon:str, mode, lan='eng', c_id=None):
-
+    '''
     link = WEATHER_LINK.format(lat, lon, '', config.API_KEY) # '' is for exclude - exclude nothing, give all weather
 
     r = requests.get(link)
     return r.json()[mode]
+    '''
+    return get_weather_db(c_id, mode)
 
 
 def detailed_48_hours(text, delay=2):
@@ -82,14 +84,15 @@ def send_weather(mode, lat, lon, c_id=None):
         return None
 
     elif mode == '2 days, detailed':
-        weather_data = get_weather(lat, lon, mode='hourly')
+        weather_data = get_weather(lat, lon, mode='2d', c_id= c_id)
+
         return detailed_48_hours(weather_data)
 
     elif mode == '7 days':
-        weather_data = get_weather(lat, lon, mode='daily')
+        weather_data = get_weather(lat, lon, mode='7d', c_id= c_id)
 
         return week_forecast(weather_data)
 
 
 def find_city_in_massage(s):
-    return s[0:s.index(' ')]
+    return s[0:s.index(' ')] if ' ' in s else s
